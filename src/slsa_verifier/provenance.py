@@ -35,6 +35,16 @@ def display_path(path: Path) -> str:
         return str(path)
 
 
+def github_workflow_build_type() -> str:
+    return "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1"
+
+
+def github_builder_id() -> str:
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        return "https://github.com/actions/runner/github-hosted"
+    return "https://example.com/build/local"
+
+
 def build_provenance(dist: Path) -> dict[str, object]:
     requirements = sorted(Path(".").glob("requirements*.txt"))
     artifacts = sorted(
@@ -47,11 +57,67 @@ def build_provenance(dist: Path) -> dict[str, object]:
         display_path(path): {"sha256": sha256_file(path)} for path in requirements
     }
     artifact_sha256 = {display_path(path): sha256_file(path) for path in artifacts}
+    timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    repository = os.environ.get("GITHUB_REPOSITORY")
+    ref = os.environ.get("GITHUB_REF")
+    workflow_ref = os.environ.get("GITHUB_WORKFLOW_REF")
+    workflow_sha = os.environ.get("GITHUB_WORKFLOW_SHA")
+    server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+    commit_sha = os.environ.get("GITHUB_SHA") or git_output("rev-parse", "HEAD")
+
+    resolved_dependencies = []
+    if repository and ref:
+        resolved_dependencies.append(
+            {
+                "uri": f"git+{server_url}/{repository}@{ref}",
+                "digest": {"gitCommit": commit_sha},
+            }
+        )
+    resolved_dependencies.extend(
+        {
+            "name": display_path(path),
+            "uri": f"file:{display_path(path)}",
+            "digest": {"sha256": sha256_file(path)},
+        }
+        for path in requirements
+    )
 
     return {
         "_type": "https://slsa.dev/provenance/v1",
-        "commit_sha": os.environ.get("GITHUB_SHA") or git_output("rev-parse", "HEAD"),
-        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "buildDefinition": {
+            "buildType": github_workflow_build_type(),
+            "externalParameters": {
+                "repository": repository,
+                "ref": ref,
+                "event": os.environ.get("GITHUB_EVENT_NAME"),
+                "workflow": os.environ.get("GITHUB_WORKFLOW"),
+                "workflow_ref": workflow_ref,
+            },
+            "internalParameters": {
+                "github_run_id": os.environ.get("GITHUB_RUN_ID"),
+                "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+                "github_job": os.environ.get("GITHUB_JOB"),
+                "runner_os": os.environ.get("RUNNER_OS"),
+                "runner_arch": os.environ.get("RUNNER_ARCH"),
+            },
+            "resolvedDependencies": resolved_dependencies,
+        },
+        "runDetails": {
+            "builder": {
+                "id": github_builder_id(),
+                "version": {
+                    "python": platform.python_version(),
+                    "workflow_sha": workflow_sha or "",
+                },
+            },
+            "metadata": {
+                "invocationId": os.environ.get("GITHUB_RUN_ID") or commit_sha,
+                "startedOn": timestamp,
+                "finishedOn": timestamp,
+            },
+        },
+        "commit_sha": commit_sha,
+        "timestamp": timestamp,
         "artifact_sha256": artifact_sha256,
         "requirements_hash": sha256_mapping(requirements_hash_summary),
         "requirements_hash_summary": requirements_hash_summary,
@@ -63,6 +129,7 @@ def build_provenance(dist: Path) -> dict[str, object]:
             for path in artifacts
         },
         "ci_environment": {
+            "github_actions": os.environ.get("GITHUB_ACTIONS"),
             "ci": os.environ.get("CI"),
             "github_action": os.environ.get("GITHUB_ACTION"),
             "github_actor": os.environ.get("GITHUB_ACTOR"),
