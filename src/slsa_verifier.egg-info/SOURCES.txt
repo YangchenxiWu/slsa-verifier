@@ -1,9 +1,0 @@
-README.md
-pyproject.toml
-src/slsa_verifier/__init__.py
-src/slsa_verifier/provenance.py
-src/slsa_verifier.egg-info/PKG-INFO
-src/slsa_verifier.egg-info/SOURCES.txt
-src/slsa_verifier.egg-info/dependency_links.txt
-src/slsa_verifier.egg-info/top_level.txt
-tests/test_provenance.py
