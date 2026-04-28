@@ -60,15 +60,14 @@ jobs:
 
       - name: Generate provenance
         run: |
-          .venv/bin/python scripts/generate-provenance.py --dist dist --output provenance.json
+          .venv/bin/python ./generate-provenance.py --dist dist --output provenance.json
 
       - name: Upload unsigned build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: unsigned-python-artifacts
           path: |
-            dist/*.whl
-            dist/*.tar.gz
+            dist/
             provenance.json
 
   sign:
@@ -87,6 +86,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: unsigned-python-artifacts
+          path: .
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v4
@@ -116,16 +116,15 @@ jobs:
           done
 
       - name: Verify signed artifacts
+        env:
+          COSIGN_CERTIFICATE_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/security.yml@${{ github.ref }}
         run: |
-          scripts/verify-artifact.sh dist/*.whl
+          ./scripts/verify_attestation.sh dist/*.whl
 
       - name: Upload signed artifacts and provenance
         uses: actions/upload-artifact@v4
         with:
           name: signed-python-artifacts
           path: |
-            dist/*.whl
-            dist/*.tar.gz
-            dist/*.sigstore.json
-            dist/*.attestation.json
+            dist/
             provenance.json
