@@ -108,7 +108,7 @@ jobs:
             cosign attest-blob \
               --yes \
               --predicate provenance.json \
-              --type slsaprovenance \
+              --type https://github.com/YangchenxiWu/slsa-verifier/provenance/v1 \
               --bundle "${artifact}.attestation.json" \
               "$artifact"
           done

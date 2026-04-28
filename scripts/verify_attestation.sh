@@ -75,7 +75,7 @@ for artifact in "$@"; do
   cosign verify-blob-attestation \
     --certificate-oidc-issuer "$issuer" \
     --certificate-identity "$identity" \
-    --type slsaprovenance \
+    --type https://github.com/YangchenxiWu/slsa-verifier/provenance/v1 \
     --bundle "${artifact}.attestation.json" \
     "$artifact"
 done
